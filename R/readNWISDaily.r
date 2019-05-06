@@ -36,43 +36,64 @@
 #' Daily <- readNWISDaily('01594440','00060', '1985-01-01', '1985-03-31')
 #' DailySuspSediment <- readNWISDaily('01594440','80154', '1985-01-01', '1985-03-31',convert=FALSE)
 #' }
-readNWISDaily <- function (siteNumber,parameterCd="00060",
+readNWISDaily <- function (siteNumber,q="00060", surrogate_cd=NULL, surrogate_name=NULL,
                            startDate="",endDate="",verbose = TRUE, interactive=NULL,convert=TRUE){
-
+  #TODO: Make backwards compatible with old readNWISDaily
 
   if(!is.null(interactive)) {
     warning("The argument 'interactive' is deprecated. Please use 'verbose' instead")
     verbose <- interactive
   }
+
+  if(is.null(surrogate_name)) {
+    surrogate_name <- surrogate_cd
+  }
+
+  parameterCd <- c(q, surrogate_cd)
+  #parameterCd <- paste(parameter_cds, collapse=',')
+  
   
   url <- dataRetrieval::constructNWISURL(siteNumber,parameterCd,startDate,endDate,"dv",statCd="00003", format = "tsv")
   
   data_rdb <- dataRetrieval::importRDB1(url, asDateTime=FALSE)
+
   
-  localDaily <- data.frame(Date=as.Date(character()),
-                           Q=numeric(), 
-                           Julian=numeric(),
-                           Month=numeric(),
-                           Day=numeric(),
-                           DecYear=numeric(),
-                           MonthSeq=numeric(),
-                           Qualifier=character(),
-                           i=integer(),
-                           LogQ=numeric(),
-                           Q7=numeric(),
-                           Q30=numeric(),
-                           stringsAsFactors=FALSE)
-  
+  lognames <- paste('Log', surrogate_name, sep='')
+  names <- c('Date', surrogate_name, 'Q','Julian','Month','Day','DecYear','MonthSeq','Qualifier','i','LogQ','Q7','Q30',lognames)
+
+  localDaily <- as.data.frame(matrix(ncol = length(names), nrow = 1), stringsAsFactors=False)
+ # localDaily <- data.frame(Date=as.Date(character()),
+ #                          Q=numeric(), 
+ #                          Julian=numeric(),
+ #                          Month=numeric(),
+ #                          Day=numeric(),
+ #                          DecYear=numeric(),
+ #                          MonthSeq=numeric(),
+ #                          Qualifier=character(),
+ #                          i=integer(),
+ #                          LogQ=numeric(),
+ #                          Q7=numeric(),
+ #                          Q30=numeric(),
+ #                          stringsAsFactors=FALSE)
+ # 
+
   if(nrow(data_rdb) > 0){
-    if(length(names(data_rdb)) >= 5){
-      names(data_rdb) <- c('agency', 'site', 'dateTime', 'value', 'code')
+    if(length(names(data_rdb)) >= 3 + 2 * length(parameterCd)){
+      base_names <- c('agency', 'site', 'dateTime', 'value', 'code')
+     
+      codes <- paste(surrogate_name, '_cd', sep='')
+      other_names <- c(rbind(surrogate_name, codes))
+      names(data_rdb) <- c(base_names, other_names)
+
       data_rdb$dateTime <- as.Date(data_rdb$dateTime)
       data_rdb$value <- as.numeric(data_rdb$value)
+
+      # for i in surroages set as numeric
       #####################################
-      qConvert <- ifelse("00060" == parameterCd, 35.314667, 1)
+      qConvert <- ifelse("00060" == q, 35.314667, 1) #XXX TOH
       qConvert<- ifelse(convert,qConvert,1)
       
-      localDaily <- populateDaily(data_rdb,qConvert,verbose = verbose)      
+      localDaily <- populateDaily(data_rdb, qConvert, surrogates=surrogate_name, verbose = verbose)      
     } else {
       if("comment" %in% names(attributes(data_rdb))){
         message(attr(data_rdb, "comment"))
@@ -83,3 +104,4 @@ readNWISDaily <- function (siteNumber,parameterCd="00060",
 
   return (localDaily)
 }
+

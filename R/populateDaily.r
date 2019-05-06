@@ -32,19 +32,22 @@
 #' code <- rep("",365)
 #' dataInput <- data.frame(dateTime, value, code, stringsAsFactors=FALSE)
 #' Daily <- populateDaily(dataInput, 2)
-populateDaily <- function(rawData,qConvert,verbose = TRUE,interactive=NULL){  # rawData is a dataframe with at least dateTime, value, code
+populateDaily <- function(rawData,qConvert,surrogates=NULL,
+			  verbose = TRUE,interactive=NULL){  # rawData is a dataframe with at least dateTime, value, code
 
   if(!is.null(interactive)) {
     warning("The argument 'interactive' is deprecated. Please use 'verbose' instead")
     verbose <- interactive
   }
-  
-  localDaily <- as.data.frame(matrix(ncol=2,nrow=length(rawData$value)))
-  colnames(localDaily) <- c('Date','Q')
+  n <- length(surrogates) + 2 
+  localDaily <- as.data.frame(matrix(ncol=n, nrow=length(rawData$value)))
+  colnames(localDaily) <- c('Date','Q', surrogates)
   localDaily$Date <- rawData$dateTime
   
   # need to convert to cubic meters per second to store the values
   localDaily$Q <- rawData$value/qConvert
+  print('surrogates') 
+  localDaily[, surrogates] <- rawData[, surrogates]
   
   dateFrame <- populateDateColumns(rawData$dateTime)
   localDaily <- cbind(localDaily, dateFrame[,-1])
@@ -92,6 +95,9 @@ populateDaily <- function(rawData,qConvert,verbose = TRUE,interactive=NULL){  # 
   localDaily$Q<-localDaily$Q+qshift
   
   localDaily$LogQ <- log(localDaily$Q)
+
+  log_names <- paste('Log', surrogates, sep='')
+  localDaily[, log_names] <- log(localDaily[, surrogates])
   
 #   Qzoo<-zoo(localDaily$Q)
   
